@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consent Mode demo</title>
+<style>
+/* Layout: a plain article with the consent banner pinned to the bottom edge. */
+:root {
+  --paper: #f5f7f8;
+  --ink: #14181c;
+  --muted: #4f5862;
+  --rule: #cfd5db;
+  --button: #ffffff;
+  --font-text: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #111417; --ink: #e6e9ec; --muted: #a3acb6; --rule: #323a42; --button: #1a2026; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.55 var(--font-text);
+  padding-block: 2.5rem 12rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 68ch; margin-inline: auto; display: grid; gap: 1rem; }
+h1 { margin: 0; font-size: 1.8rem; line-height: 1.2; }
+p { margin: 0; }
+code { font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace; font-size: 0.9em; }
+.banner {
+  position: fixed; inset: auto 0 0; background: var(--paper); border-top: 1px solid var(--rule);
+  padding-block: 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.banner-inner { max-width: 68ch; margin-inline: auto; display: grid; gap: 0.75rem; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+/* Both choices share one style on purpose: neither is easier to pick than the other. */
+.choices button {
+  font: inherit; font-weight: 600; padding: 0.7rem 1rem; color: var(--ink); background: var(--button);
+  border: 1px solid var(--ink); border-radius: 4px; cursor: pointer;
+}
+.choices button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.status { color: var(--muted); font-size: 0.9rem; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+@media print { .banner { position: static; } }
+</style>
+<script src="config.js"></script>
+<script>
+  // Consent Mode v2: the default must be set before any command that sends measurement data.
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag("consent", "default", {
+    ad_storage: "denied",
+    ad_user_data: "denied",
+    ad_personalization: "denied",
+    analytics_storage: "denied",
+  });
+  gtag("js", new Date());
+  gtag("config", window.DEMO_CONFIG.measurementId);
+  (function () {
+    var script = document.createElement("script");
+    script.async = true;
+    script.src = "https://www.googletagmanager.com/gtag/js?id=" +
+      encodeURIComponent(window.DEMO_CONFIG.measurementId);
+    document.head.appendChild(script);
+  })();
+</script>
+</head>
+<body>
+<main>
+  <h1>Consent Mode demo</h1>
+  <p>This page loads the Google tag with every consent type denied by default. Until you answer the banner below, the tag may only send cookieless pings that carry the denied state in <code>gcs</code>.</p>
+  <p>Accept grants all four consent types and Reject keeps them denied. Either answer is sent with <code>gtag("consent", "update", ...)</code>.</p>
+  <p class="status" id="status" role="status">No choice made yet.</p>
+  <noscript><p>This demo needs JavaScript, because the Google tag does.</p></noscript>
+</main>
+
+<section class="banner" id="banner" aria-labelledby="banner-title">
+  <div class="banner-inner">
+    <h2 id="banner-title" style="margin:0;font-size:1.1rem">Cookies on this demo</h2>
+    <p>With your permission, Google Analytics sets cookies to count visits. Without it, only cookieless measurements are sent.</p>
+    <div class="choices">
+      <button type="button" id="reject">Reject</button>
+      <button type="button" id="accept">Accept</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    var KEYS = ["ad_storage", "ad_user_data", "ad_personalization", "analytics_storage"];
+    function choose(value) {
+      var update = {};
+      KEYS.forEach(function (key) { update[key] = value; });
+      gtag("consent", "update", update);
+      document.getElementById("banner").hidden = true;
+      document.getElementById("status").textContent =
+        value === "granted" ? "You accepted. Consent is granted." : "You rejected. Consent stays denied.";
+    }
+    document.getElementById("accept").addEventListener("click", function () { choose("granted"); });
+    document.getElementById("reject").addEventListener("click", function () { choose("denied"); });
+  })();
+</script>
+</body>
+</html>

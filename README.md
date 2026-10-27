@@ -93,6 +93,32 @@ The tests serve fixture pages with `route.fulfill` on fake hosts (`site.example`
 - It detects a consent manager through the TCF API, Cookiebot, Didomi, OneTrust or a domain in Disconnect's ConsentManagers category. Any other is reported as not detected.
 - There is no scheduled run in CI: from a CI region the results would describe the wrong country.
 
+## Demo
+
+`demo/` holds a page that uses Google Consent Mode v2 the way the method expects: every consent type denied by default before the tag loads, a banner whose Accept and Reject buttons share one style with nothing preselected, and `gtag("consent", "update", ...)` when the visitor chooses. The measurement ID lives in `demo/config.js` and is the placeholder `G-XXXXXXXXXX`.
+
+`python demo/audit_demo.py` audits the page twice, offline: Google's script is replaced by `demo/gtag-stub.js`, a stand-in that only mimics the documented `gcs` behaviour, and the analytics pings are answered locally. The second visit clicks Accept, which the CLI never does. Output of the last run:
+
+```
+before any choice
+  status: ok
+  request www.google-analytics.com/g/collect: gcs ad_storage=denied analytics_storage=denied
+  no tracker cookies
+after Accept
+  status: ok
+  request www.google-analytics.com/g/collect: gcs ad_storage=denied analytics_storage=denied
+  request www.google-analytics.com/g/collect: gcs ad_storage=granted analytics_storage=granted
+  cookie _ga on 127.0.0.1 (cookie_name)
+```
+
+| | Before any choice | After Accept |
+| --- | --- | --- |
+| Pings to google-analytics.com | 1, `gcs` denies both storages | 2, the second grants both |
+| `_ga` cookie | none | set, 2-year expiry |
+| Classification | `consent_aware_request` and `no_cmp_detected` | not classified (after a choice) |
+
+The before visit is also flagged `no_cmp_detected`: the demo's hand-made banner is not a consent manager the tool can recognise, which is the limitation described above, shown on our own page. `tests/test_demo.py` checks all of this.
+
 ## Tracker list attribution
 
 Tracker and consent manager domains come from the Disconnect tracking protection list, Copyright Disconnect, Inc., licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (https://creativecommons.org/licenses/by-nc-sa/4.0/). Source: https://github.com/disconnectme/disconnect-tracking-protection. The list is not included in this repository; `fetch-lists` downloads it and records its URL, date and SHA-256. Commercial use of the list needs a separate license from Disconnect.
