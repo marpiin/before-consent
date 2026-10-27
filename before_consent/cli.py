@@ -26,7 +26,7 @@ from before_consent.config import (
 from before_consent.lists import LIST_FILE, fetch_disconnect, read_snapshot
 from before_consent.netguard import GuardProxy
 from before_consent.pacing import Pacer
-from before_consent.report import export_csv, latest_run
+from before_consent.report import build_report, export_csv, latest_run
 from before_consent.targets import load_targets
 from before_consent.trackers import load_disconnect
 from before_consent.visit import BrowserSession, honest_user_agent, launch_browser
@@ -168,8 +168,6 @@ def cmd_export(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def cmd_report(args: argparse.Namespace, settings: Settings) -> int:
-    from before_consent.report import build_report
-
     connection = store.connect(settings.database)
     run_id = args.run_id or latest_run(connection)
     path = build_report(connection, run_id, settings, Path(settings.report_dir))

@@ -1,0 +1,392 @@
+{% set h = headline %}
+{% macro pct(value) %}{{ "%.1f"|format(value or 0) }}%{% endmacro %}
+{% macro share(part, whole) %}{{ part }} of {{ whole }}{% endmacro %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Before consent</title>
+<style>
+/* Layout: one reading column of about 68 characters; the request timeline alone takes the
+   full width, because it is the evidence the rest of the page summarises. */
+:root {
+  --paper: #f5f7f8;
+  --ink: #14181c;
+  --muted: #4f5862;
+  --rule: #cfd5db;
+  --signal: #0b5884;
+  --wash: #e6ecf0;
+  --font-text: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-data: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --measure: 68ch;
+  --wide: 76rem;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #111417;
+    --ink: #e6e9ec;
+    --muted: #a3acb6;
+    --rule: #323a42;
+    --signal: #7cc0ea;
+    --wash: #1a2026;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 1rem/1.55 var(--font-text);
+  padding-block: 2.5rem 4rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main, header, footer { max-width: var(--wide); margin-inline: auto; display: grid; gap: 3rem; }
+section { display: grid; gap: 1rem; min-width: 0; }
+.prose { max-width: var(--measure); }
+h1, h2, h3 { line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.9rem, 1.2rem + 2.6vw, 2.9rem); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 1.45rem; font-weight: 650; padding-top: 1.25rem; border-top: 1px solid var(--rule); }
+h3 { font-size: 1.05rem; font-weight: 650; }
+p { margin: 0; }
+.prose > * + * { margin-top: 0.8rem; }
+.lede { font-size: clamp(1.15rem, 1rem + 0.6vw, 1.4rem); line-height: 1.45; max-width: 40ch; }
+.lede strong { font-weight: 700; }
+.meta { color: var(--muted); font-size: 0.9rem; }
+a { color: var(--signal); text-underline-offset: 0.18em; }
+a:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--signal); outline-offset: 3px; border-radius: 2px;
+}
+code, .data { font-family: var(--font-data); font-size: 0.9em; }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+/* Figures in a row of label and value pairs, read left to right. */
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem 2rem; margin: 0; }
+.figures div { display: grid; gap: 0.15rem; border-left: 2px solid var(--rule); padding-left: 0.75rem; }
+.figures dt { color: var(--muted); font-size: 0.85rem; }
+.figures dd { margin: 0; font-size: 1.35rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+caption { text-align: left; color: var(--muted); font-size: 0.85rem; padding-bottom: 0.5rem; }
+th, td { padding: 0.45rem 0.75rem 0.45rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; text-align: left; }
+th { font-weight: 600; color: var(--muted); font-size: 0.82rem; }
+tbody tr:hover { background: var(--wash); }
+.bar { display: grid; grid-template-columns: minmax(5rem, 1fr) auto; gap: 0.6rem; align-items: center; min-width: 12rem; }
+.bar-track { height: 0.55rem; background: var(--wash); border: 1px solid var(--rule); }
+.bar-fill { height: 100%; background: var(--ink); }
+
+/* The timeline: one row per request, a mark placed on a shared millisecond axis. */
+.timeline { max-width: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; padding: 0; margin: 0; list-style: none; font-size: 0.88rem; }
+.legend li { display: flex; align-items: center; gap: 0.45rem; }
+.log { font-family: var(--font-data); font-size: 0.84rem; min-width: 52rem; }
+.log-row {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(14rem, 1.2fr) 9.5rem minmax(16rem, 1.6fr);
+  gap: 0 1rem; align-items: center; padding: 0.22rem 0; border-bottom: 1px solid var(--wash);
+}
+.log-head { color: var(--muted); font-family: var(--font-text); font-size: 0.8rem; border-bottom: 1px solid var(--rule); }
+.log-row.first, .log-row.third { color: var(--muted); }
+.track { position: relative; height: 1rem; border-left: 1px solid var(--rule); }
+.track .load { position: absolute; top: -0.25rem; bottom: -0.25rem; border-left: 1px dashed var(--muted); }
+.track .mark { position: absolute; top: 50%; transform: translate(-50%, -50%); }
+.where { overflow-wrap: anywhere; }
+.where small { color: var(--muted); }
+.mark { display: inline-block; width: 0.7rem; height: 0.7rem; flex: none; }
+.mark.tracker { background: var(--signal); }
+.mark.denied { border: 2px solid var(--signal); background: var(--paper); }
+.mark.blocked { width: 0.8rem; height: 0.8rem; background:
+  linear-gradient(45deg, transparent 42%, var(--ink) 42% 58%, transparent 58%),
+  linear-gradient(-45deg, transparent 42%, var(--ink) 42% 58%, transparent 58%); }
+.mark.third { border: 1.5px solid var(--muted); border-radius: 50%; width: 0.6rem; height: 0.6rem; }
+.mark.first { background: var(--muted); border-radius: 50%; width: 0.35rem; height: 0.35rem; }
+.axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.78rem; }
+
+details { border-top: 1px solid var(--rule); padding-top: 0.6rem; }
+summary { cursor: pointer; font-weight: 600; }
+dl.dictionary { display: grid; grid-template-columns: minmax(8rem, 12rem) 1fr; gap: 0.4rem 1.5rem; margin: 0; }
+dl.dictionary dt { font-family: var(--font-data); font-size: 0.88rem; overflow-wrap: anywhere; }
+dl.dictionary dd { margin: 0; }
+ul.plain { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.4rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: 0.85rem; }
+footer dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 1rem; margin: 0; }
+footer dd { margin: 0; font-family: var(--font-data); overflow-wrap: anywhere; }
+
+@media (max-width: 40rem) {
+  dl.dictionary, footer dl { grid-template-columns: 1fr; }
+  dl.dictionary dd, footer dd { margin-bottom: 0.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+@media print {
+  :root { --paper: #fff; --ink: #000; --muted: #333; --rule: #999; --signal: #000; --wash: #eee; color-scheme: light; }
+  body { padding: 0; font-size: 10.5pt; }
+  main, header, footer { gap: 1.5rem; max-width: none; }
+  .scroll { overflow: visible; }
+  .log { min-width: 0; font-size: 7.5pt; }
+  .log-row, tr, .figures div { break-inside: avoid; }
+  h2 { break-after: avoid; }
+  a { color: inherit; }
+  a[href^="data/"]::after { content: " (" attr(href) ")"; }
+  details > *:not(summary) { display: block; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="prose">
+    <h1>What home pages load before you answer the cookie banner</h1>
+  </div>
+  {% if h.sites %}
+  <p class="lede">
+    On <strong>{{ share(h.sites_tracker_request, h.sites) }} measured home pages ({{ pct(h.pct_tracker_request) }})</strong>
+    the browser contacted a known tracker domain without a consent-denied signal before any choice was made,
+    and {{ share(h.sites_storage, h.sites) }} ({{ pct(h.pct_storage) }}) had a tracker cookie or storage key in place.
+  </p>
+  {% else %}
+  <p class="lede">No home page was measured successfully in this run, so there are no results to show.</p>
+  {% endif %}
+  <p class="meta">
+    Measured from {{ run.country }} between {{ run.started_at }} and {{ run.finished_at }},
+    {{ run.listed_sites }} sites listed, {{ run.measured_sites }} measured, {{ run.visits }} visits in total.
+    The browser never clicked, scrolled or typed. Results describe what was observed, not whether any site complies with a law.
+  </p>
+</header>
+
+<main>
+  <section aria-labelledby="figures">
+    <h2 id="figures">Sites with each kind of finding</h2>
+    <dl class="figures">
+      <div><dt>Measured sites</dt><dd>{{ h.sites }}</dd></div>
+      <div><dt>Any finding counted as an incident</dt><dd>{{ h.sites_with_incident }} <span class="meta">({{ pct(h.pct_incident) }})</span></dd></div>
+      <div><dt>tracker_request_before_choice</dt><dd>{{ h.sites_tracker_request }}</dd></div>
+      <div><dt>storage_before_choice</dt><dd>{{ h.sites_storage }}</dd></div>
+      <div><dt>no_cmp_detected</dt><dd>{{ h.sites_no_cmp }}</dd></div>
+      <div><dt>consent_aware_request, not an incident</dt><dd>{{ h.sites_consent_aware }}</dd></div>
+    </dl>
+    <p class="prose meta">A site counts once per kind if any of its successful visits showed it. The categories are defined under Method.</p>
+  </section>
+
+  <section aria-labelledby="by-category">
+    <h2 id="by-category">Results by site category</h2>
+    {% if categories %}
+    <div class="scroll" tabindex="0" role="region" aria-labelledby="by-category">
+      <table>
+        <caption>Share of measured sites per category with at least one incident. Only categories with {{ settings.min_sites_per_category }} or more measured sites are shown{% if hidden_categories %}; {{ hidden_categories }} smaller {{ "category is" if hidden_categories == 1 else "categories are" }} left out{% endif %}.</caption>
+        <thead>
+          <tr><th scope="col">Category</th><th scope="col">Sites with an incident</th><th scope="col" class="num">Tracker request</th><th scope="col" class="num">Tracker storage</th><th scope="col" class="num">No CMP found</th><th scope="col" class="num">Denied signal only</th></tr>
+        </thead>
+        <tbody>
+          {% for c in categories %}
+          <tr>
+            <th scope="row">{{ c.category }}</th>
+            <td>
+              <div class="bar">
+                <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width: {{ c.pct_incident }}%"></div></div>
+                <span class="num">{{ share(c.sites_with_incident, c.sites) }} ({{ pct(c.pct_incident) }})</span>
+              </div>
+            </td>
+            <td class="num">{{ c.sites_tracker_request }}</td>
+            <td class="num">{{ c.sites_storage }}</td>
+            <td class="num">{{ c.sites_no_cmp }}</td>
+            <td class="num">{{ c.sites_consent_aware }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="prose">No category has {{ settings.min_sites_per_category }} or more measured sites, so none is shown.</p>
+    {% endif %}
+  </section>
+
+  <section class="timeline" aria-labelledby="one-visit">
+    <h2 id="one-visit">One visit, request by request</h2>
+    {% if representative %}
+    <p class="prose">
+      This is the request log of one real visit to <span class="data">{{ representative_site }}</span> ({{ representative.category }}),
+      chosen by query as the visit with the median number of tracker requests ({{ representative.tracker_requests }})
+      among visits that had any. Every row happened before any interaction with the page.
+      The dashed line marks the load event; the log covers {{ "{:,}".format(log_span_ms) }} ms.
+      {% if not settings.show_site_names %}First-party and other non-tracker hosts are masked so the site cannot be named.{% endif %}
+    </p>
+    <ul class="legend" aria-label="Legend">
+      <li><span class="mark tracker" aria-hidden="true"></span>tracker</li>
+      <li><span class="mark denied" aria-hidden="true"></span>tracker, consent-denied signal</li>
+      <li><span class="mark blocked" aria-hidden="true"></span>blocked by the guard</li>
+      <li><span class="mark third" aria-hidden="true"></span>other third party</li>
+      <li><span class="mark first" aria-hidden="true"></span>first party</li>
+    </ul>
+    <div class="scroll" tabindex="0" role="region" aria-labelledby="one-visit">
+      <div class="log" role="table" aria-label="Requests of the representative visit">
+        <div class="log-row log-head" role="row">
+          <span role="columnheader" class="num">ms</span>
+          <span role="columnheader">when, 0 to {{ "{:,}".format(log_span_ms) }} ms</span>
+          <span role="columnheader">kind</span>
+          <span role="columnheader">host and path</span>
+        </div>
+        {% set load_x = (100 * (log[0].load_ms or 0) / log_span_ms) | round(2) %}
+        {% for r in log %}
+        <div class="log-row {{ r.kind }}" role="row">
+          <span role="cell" class="num">{{ r.started_ms }}</span>
+          <span role="cell" class="track" aria-hidden="true">
+            <span class="load" style="left: {{ load_x }}%"></span>
+            <span class="mark {{ r.kind }}" style="left: {{ r.x }}%"></span>
+          </span>
+          <span role="cell">{{ {"tracker": "tracker", "denied": "denied signal", "blocked": "blocked", "third": "third party", "first": "first party"}[r.kind] }}</span>
+          <span role="cell" class="where">{{ r.shown_host }}{{ r.shown_path }}
+            {% if r.tracker_owner %}<small>{{ r.tracker_owner }}, {{ r.tracker_category }}, {{ r.resource_type }}{% if r.consent_signal %}, {{ r.consent_signal }}{% endif %}</small>{% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <p class="prose">No successful visit contacted a tracker, so there is no request log to show.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="owners">
+    <h2 id="owners">Trackers and their owners</h2>
+    {% if owners %}
+    <div class="scroll" tabindex="0" role="region" aria-labelledby="owners">
+      <table>
+        <caption>Companies whose tracker domains were contacted before any choice, as named in the Disconnect list.</caption>
+        <thead><tr><th scope="col">Owner</th><th scope="col" class="num">Sites</th><th scope="col" class="num">Domains</th><th scope="col" class="num">Requests</th><th scope="col" class="num">With denied signal</th></tr></thead>
+        <tbody>
+          {% for o in owners[:20] %}
+          <tr><th scope="row">{{ o.tracker_owner }}</th><td class="num">{{ o.sites }}</td><td class="num">{{ o.tracker_domains }}</td><td class="num">{{ o.requests }}</td><td class="num">{{ o.requests_with_denied_signal }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if owners|length > 20 %}<p class="meta">Showing 20 of {{ owners|length }} owners; the rest are in trackers_by_owner.csv.</p>{% endif %}
+    <div class="scroll" tabindex="0" role="region" aria-label="Tracker domains">
+      <table>
+        <caption>Tracker domains by share of measured sites.</caption>
+        <thead><tr><th scope="col">Domain</th><th scope="col">Owner</th><th scope="col">List category</th><th scope="col" class="num">Sites</th><th scope="col" class="num">Share</th></tr></thead>
+        <tbody>
+          {% for p in prevalence[:25] %}
+          <tr><td class="data">{{ p.tracker_domain }}</td><td>{{ p.tracker_owner }}</td><td>{{ p.tracker_category }}</td><td class="num">{{ p.sites }}</td><td class="num">{{ pct(p.pct_sites) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if prevalence|length > 25 %}<p class="meta">Showing 25 of {{ prevalence|length }} domains; the rest are in tracker_prevalence.csv.</p>{% endif %}
+    {% else %}
+    <p class="prose">No tracker domain was contacted in a successful visit.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="cookies">
+    <h2 id="cookies">How long tracker cookies last</h2>
+    {% if lifetimes %}
+    <div class="scroll" tabindex="0" role="region" aria-labelledby="cookies">
+      <table>
+        <caption>Expiry of tracker cookies present at the end of a visit, measured from the start of that visit.</caption>
+        <thead><tr><th scope="col">Lifetime</th><th scope="col" class="num">Cookies</th><th scope="col" class="num">Distinct names</th><th scope="col" class="num">Sites</th></tr></thead>
+        <tbody>
+          {% for l in lifetimes %}
+          <tr><th scope="row">{{ l.lifetime }}</th><td class="num">{{ l.cookies }}</td><td class="num">{{ l.cookie_names }}</td><td class="num">{{ l.sites }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="prose">No tracker cookie was found in a successful visit.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="consistency">
+    <h2 id="consistency">Do findings repeat across rounds?</h2>
+    {% if consistency %}
+    <div class="scroll" tabindex="0" role="region" aria-labelledby="consistency">
+      <table>
+        <caption>For sites showing a kind of finding, whether it appeared in every successful round or only some.</caption>
+        <thead><tr><th scope="col">Kind</th><th scope="col" class="num">Sites</th><th scope="col" class="num">Every round</th><th scope="col" class="num">Some rounds</th><th scope="col" class="num">Share every round</th></tr></thead>
+        <tbody>
+          {% for c in consistency %}
+          <tr><th scope="row" class="data">{{ c.kind }}</th><td class="num">{{ c.sites }}</td><td class="num">{{ c.sites_every_round }}</td><td class="num">{{ c.sites_some_rounds }}</td><td class="num">{{ pct(c.pct_every_round) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="prose">There were no findings to compare across rounds.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="method">
+    <h2 id="method">Method</h2>
+    <div class="prose">
+      <p>Each listed home page was opened {{ settings.repetitions }} times in rotating order, in a new browser context every time, with no profile, locale {{ settings.locale }}, time zone {{ settings.timezone }} and a {{ settings.viewport_width }} by {{ settings.viewport_height }} viewport. The tool waited for the load event and then {{ settings.settle_seconds }} seconds more, because many tags fire late, and then read the requests made so far, the cookies, the localStorage and sessionStorage keys of every frame, and the presence of a consent manager. It never clicked or typed, so everything recorded happened before any choice.</p>
+      <p>A request is from a tracker when its host is listed under Advertising, Analytics, Social, FingerprintingInvasive, FingerprintingGeneral or Cryptomining in the Disconnect tracking protection list and it is a third party, meaning its registrable domain differs from the site's. The four kinds of finding are:</p>
+      <ul class="plain">
+        <li><code>storage_before_choice</code>: a cookie or storage key from a tracker, or a first-party cookie with a name its vendor documents (such as <code>_ga</code> or <code>_fbp</code>).</li>
+        <li><code>tracker_request_before_choice</code>: a request to a tracker without a consent-denied signal.</li>
+        <li><code>consent_aware_request</code>: a request to a Google tracker whose <code>gcs</code> parameter says both ad_storage and analytics_storage are denied. In Google's Consent Mode these cookieless requests are part of the design, so they are reported apart and not counted as incidents.</li>
+        <li><code>no_cmp_detected</code>: trackers were contacted and no consent manager was found, either through the TCF <code>__tcfapi</code> function, the documented globals of Cookiebot, Didomi or OneTrust, or a request to a domain in Disconnect's ConsentManagers category.</li>
+      </ul>
+      <p>The browser had its sandbox on, blocked service workers, downloads, permissions, dialogs and pop-ups, and sent every connection through a local guard that refused loopback, private, link-local and reserved addresses. Refused requests are logged as blocked and are not counted as contact with a third party. Visits whose page answered with an HTTP error, or that failed to load within {{ settings.visit_timeout_seconds }} seconds, are stored with their cause and left out of the results. robots.txt was read for every site with the same User-Agent; sites that disallow their home page were skipped.</p>
+      <p>The full method, with the sources for every interpreted signal, is in <code>docs/method.md</code> in the repository.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="limits">
+    <h2 id="limits">Limitations</h2>
+    <ul class="plain prose">
+      <li>Results depend on the source IP. Sites show different banners, or none, by country; this run was measured from {{ run.country }} only.</li>
+      <li>Only the home page was visited, on one date. Inner pages and other days may behave differently.</li>
+      <li>Sites run A/B tests and rotate ad partners, so two visits can differ; the consistency table shows how much they did here.</li>
+      <li>The browser was headless and said so in its User-Agent. Sites that detect automation may serve different content or block the visit; the tool does not try to hide.</li>
+      <li>Banners and tags can change with the time of day and with server-side rules the tool cannot see.</li>
+      <li>Tracker detection is only as complete as the Disconnect list, and consent signals are only read where documented (the Google <code>gcs</code> parameter). Other vendors' signals are not interpreted.</li>
+      <li>A consent manager that does not use the TCF API, one of the three documented globals, or a listed domain is reported as not detected, which is not the same as absent.</li>
+      <li>Behaviour after rejecting or accepting was not measured.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="dictionary">
+    <h2 id="dictionary">Data dictionary</h2>
+    <p class="prose">The database keeps names and metadata, never values. Cookie values, storage values and URL parameter values are dropped before anything is written.</p>
+    <dl class="dictionary">
+      <dt>run</dt><dd>One measurement: start and end time, the country it was measured from, tool and browser versions, the tracker list source with its SHA-256 and download date, and a SHA-256 of the settings.</dd>
+      <dt>site</dt><dd>A listed home page and its category.</dd>
+      <dt>visit</dt><dd>One visit to one site in one round: status (ok, failed, http_error, skipped_robots), cause of any failure, HTTP status, time to the load event, consent manager signals found.</dd>
+      <dt>request_log</dt><dd>Each request: time since the visit started, host, the first two path segments with id-like segments replaced, resource type, whether it was third party, why it was blocked if it was, the names of its URL parameters, the interpreted Google consent signal, and the tracker domain, owner and category when listed.</dd>
+      <dt>cookie</dt><dd>Name, domain, expiry, Secure, HttpOnly, SameSite, whether third party, and the tracker owner with how it was matched (list or documented cookie name).</dd>
+      <dt>storage_key</dt><dd>localStorage and sessionStorage keys per frame origin, with the tracker owner when the origin is a listed tracker.</dd>
+      <dt>finding</dt><dd>A view that applies the four definitions above to successful visits. The incident view is the same without consent_aware_request.</dd>
+    </dl>
+  </section>
+
+  <section aria-labelledby="files">
+    <h2 id="files">Aggregated data</h2>
+    <p class="prose">Every figure on this page comes from one of these SQL queries, and each table is available as CSV.{% if not settings.show_site_names %} Sites appear as category pseudonyms.{% endif %}</p>
+    <ul class="plain">
+      {% for name in csv_files %}
+      {% set query = name[:-4] %}
+      <li><a href="data/{{ name }}">{{ name }}</a> <span class="meta">{{ questions[query] }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+</main>
+
+<footer>
+  <dl>
+    <dt>Tool</dt><dd>before-consent {{ run.tool_version }}</dd>
+    <dt>Browser</dt><dd>{{ run.browser_channel }} {{ run.browser_version }}</dd>
+    <dt>Tracker list</dt><dd>{{ run.list_source }}, fetched {{ run.list_fetched_at }}, sha256 {{ run.list_sha256 }}. Disconnect, licensed CC BY-NC-SA 4.0.</dd>
+    <dt>Settings</dt><dd>sha256 {{ run.config_sha256 }}</dd>
+    <dt>Visits</dt><dd>{{ run.ok_visits }} ok, {{ run.failed_visits }} failed, {{ run.http_error_visits }} HTTP error, {{ run.skipped_visits }} skipped by robots.txt</dd>
+  </dl>
+</footer>
+</body>
+</html>

@@ -4,8 +4,12 @@ import csv
 import sqlite3
 from pathlib import Path
 
-from before_consent import store
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+
+from before_consent import __version__, store
 from before_consent.config import Settings
+
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 # Queries whose rows are aggregates and safe to publish as CSV.
 EXPORTED_QUERIES = (
@@ -80,3 +84,90 @@ def export_csv(
                 writer.writerows({k: _csv_safe(v) for k, v in row.items()} for row in rows)
         written.append(path)
     return written
+
+
+def _log_kind(row: dict) -> str:
+    if row["blocked_reason"]:
+        return "blocked"
+    if row["tracker_owner"] and row["consent_denied"]:
+        return "denied"
+    if row["tracker_owner"]:
+        return "tracker"
+    return "third" if row["is_third_party"] else "first"
+
+
+def _log_rows(rows: list[dict], show_site_names: bool) -> tuple[list[dict], int]:
+    """Prepare the representative visit's requests for the timeline.
+
+    With site names hidden, first-party and non-tracker hosts are masked because they would
+    name the site; tracker hosts are kept because they are the finding.
+    """
+    load_ms = (rows[0]["load_ms"] or 0) if rows else 0
+    span = max(max((r["started_ms"] for r in rows), default=0), load_ms, 1)
+    prepared = []
+    for row in rows:
+        kind = _log_kind(row)
+        host, path = row["host"], row["path"]
+        if not show_site_names and kind in ("first", "third"):
+            host = "first-party host" if kind == "first" else "other third-party host"
+            path = ""
+        prepared.append(
+            {
+                **row,
+                "kind": kind,
+                "shown_host": host,
+                "shown_path": path,
+                "x": round(100 * row["started_ms"] / span, 2),
+            }
+        )
+    return prepared, span
+
+
+def build_report(
+    connection: sqlite3.Connection, run_id: int, settings: Settings, out_dir: Path
+) -> Path:
+    def rows(name: str) -> list[dict]:
+        return _published_rows(connection, name, run_id, settings)
+
+    csv_paths = export_csv(connection, run_id, settings, out_dir / "data")
+    representative = rows("representative_visit")
+    log, span, site_label = [], 1, None
+    if representative:
+        visit = representative[0]
+        requests = store.run_query(connection, "visit_requests", visit_id=visit["visit_id"])
+        log, span = _log_rows(requests, settings.show_site_names)
+        site_label = site_labels(connection, settings.show_site_names)[visit["site_id"]]
+    all_categories = {
+        r["category"]
+        for r in store.run_query(connection, "findings_by_category", run_id=run_id, min_sites=1)
+    }
+    categories = rows("findings_by_category")
+    environment = Environment(
+        loader=FileSystemLoader(TEMPLATES_DIR),
+        autoescape=True,
+        undefined=StrictUndefined,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    html = environment.get_template("report.html.j2").render(
+        tool_version=__version__,
+        settings=settings,
+        run=rows("run_summary")[0],
+        headline=rows("headline")[0],
+        categories=categories,
+        hidden_categories=len(all_categories) - len(categories),
+        prevalence=rows("tracker_prevalence"),
+        owners=rows("trackers_by_owner"),
+        lifetimes=rows("cookie_lifetime"),
+        consistency=rows("consistency"),
+        representative=representative[0] if representative else None,
+        representative_site=site_label,
+        log=log,
+        log_span_ms=span,
+        csv_files=[p.name for p in csv_paths],
+        questions={name: store.query_question(name) for name in store.query_names()},
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "index.html"
+    path.write_text(html, encoding="utf-8")
+    return path
