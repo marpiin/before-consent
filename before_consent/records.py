@@ -5,7 +5,9 @@ read only to drop them, except a consent signal we know how to interpret.
 """
 
 import re
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlsplit
 
 from before_consent.signals import google_consent_signal, known_cookie_owner
@@ -53,6 +55,22 @@ class StorageKeyRecord:
     key: str
     is_third_party: bool
     tracker_owner: str | None
+
+
+@dataclass
+class VisitResult:
+    url: str
+    status: str
+    started_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat("T", "seconds"))
+    started_unix: float = field(default_factory=time.time)
+    error: str | None = None
+    final_host: str | None = None
+    http_status: int | None = None
+    load_ms: int | None = None
+    cmp: str | None = None
+    requests: list[RequestRecord] = field(default_factory=list)
+    cookies: list[CookieRecord] = field(default_factory=list)
+    storage_keys: list[StorageKeyRecord] = field(default_factory=list)
 
 
 def trimmed_path(path: str) -> str:

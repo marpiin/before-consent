@@ -2,8 +2,7 @@
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, Route
@@ -12,9 +11,8 @@ from playwright.sync_api import Error as PlaywrightError
 from before_consent.config import Settings, user_agent_suffix
 from before_consent.netguard import GuardProxy
 from before_consent.records import (
-    CookieRecord,
     RequestRecord,
-    StorageKeyRecord,
+    VisitResult,
     cookie_record,
     request_record,
     site_domain_of,
@@ -45,22 +43,6 @@ class BrowserSession:
     trackers: TrackerList
     user_agent: str
     transport: Transport | None = None
-
-
-@dataclass
-class VisitResult:
-    url: str
-    status: str
-    started_at: str
-    started_unix: float
-    error: str | None = None
-    final_host: str | None = None
-    http_status: int | None = None
-    load_ms: int | None = None
-    cmp: str | None = None
-    requests: list[RequestRecord] = field(default_factory=list)
-    cookies: list[CookieRecord] = field(default_factory=list)
-    storage_keys: list[StorageKeyRecord] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -169,12 +151,7 @@ def visit_site(
     """
     s = session.settings
     started = time.monotonic()
-    result = VisitResult(
-        url=url,
-        status="failed",
-        started_at=datetime.now(UTC).isoformat(timespec="seconds"),
-        started_unix=time.time(),
-    )
+    result = VisitResult(url=url, status="failed")
     seen: list[tuple[int, str, str]] = []
 
     def elapsed_ms() -> int:
