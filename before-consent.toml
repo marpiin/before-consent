@@ -1,0 +1,30 @@
+# Settings for before-consent. Every value here is hashed into each run (config_sha256).
+
+# Sent in the User-Agent of every request so site owners can reach whoever runs the audit.
+# A project URL or an email address. Real visits are refused while this is empty.
+contact = ""
+
+# Seconds to wait after the load event, because many tags fire late.
+settle_seconds = 8.0
+repetitions = 3
+
+# Politeness floors: the tool refuses values below 5 s, 30 s, or a visit timeout above 45 s.
+gap_seconds = 5.0
+same_site_gap_seconds = 30.0
+visit_timeout_seconds = 45.0
+
+# chromium (Playwright's build), chrome or msedge.
+browser_channel = "chromium"
+locale = "es-ES"
+timezone = "Europe/Madrid"
+viewport_width = 1366
+viewport_height = 768
+
+# The report hides site names and any site category with fewer sites than this.
+show_site_names = false
+min_sites_per_category = 5
+
+database = "data/before-consent.sqlite"
+lists_dir = "data/lists"
+targets = "targets.csv"
+report_dir = "report"
