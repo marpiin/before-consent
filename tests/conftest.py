@@ -57,12 +57,17 @@ class FakeWeb:
 
 
 @pytest.fixture(scope="session")
-def browser_and_proxy():
+def playwright():
+    with sync_playwright() as instance:
+        yield instance
+
+
+@pytest.fixture(scope="session")
+def browser_and_proxy(playwright):
     proxy = GuardProxy(resolve=offline_resolve).start()
-    with sync_playwright() as playwright:
-        browser = launch_browser(playwright, CHANNEL, proxy)
-        yield browser, proxy
-        browser.close()
+    browser = launch_browser(playwright, CHANNEL, proxy)
+    yield browser, proxy
+    browser.close()
     proxy.stop()
 
 

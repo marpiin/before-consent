@@ -64,7 +64,7 @@ def test_robots_rules_for_our_product_token():
     ("path", "expected"),
     [
         ("/g/collect", "/g/collect"),
-        ("/pagead/viewthroughconversion/123456789/", "/pagead/viewthroughconversion"),
+        ("/pagead/conversion/123456789/", "/pagead/conversion"),
         ("/u/12345/profile", "/u/{id}"),
         ("/ddm/activity/src=123;type=x", "/ddm/activity"),
         ("/a;b=1/x", "/{id}/x"),
