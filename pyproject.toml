@@ -1,0 +1,24 @@
+[project]
+name = "before-consent"
+version = "0.1.0"
+description = "Record what public websites load and store before a visitor answers the cookie banner."
+requires-python = ">=3.11"
+license = "MIT"
+# Dependencies are pinned in requirements.txt and requirements-dev.txt.
+# There is no build step: run the tool with `python -m before_consent`.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "data", "report"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE"]
+ignore = ["S101", "S608"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
