@@ -2,7 +2,7 @@
 
 # Sent in the User-Agent of every request so site owners can reach whoever runs the audit.
 # A project URL or an email address. Real visits are refused while this is empty.
-contact = ""
+contact = "https://github.com/marpiin/before-consent"
 
 # Seconds to wait after the load event, because many tags fire late.
 settle_seconds = 8.0
