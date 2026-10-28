@@ -1,5 +1,6 @@
 """SQLite storage and the named queries in queries/*.sql."""
 
+import re
 import sqlite3
 from dataclasses import astuple
 from datetime import UTC, datetime
@@ -118,13 +119,22 @@ def query_names() -> list[str]:
     return sorted(p.stem for p in QUERIES_DIR.glob("*.sql"))
 
 
-def query_question(name: str) -> str:
-    first_line = (QUERIES_DIR / f"{name}.sql").read_text(encoding="utf-8").splitlines()[0]
-    return first_line.removeprefix("--").strip()
+def _query_sql(name: str) -> str:
+    if name not in query_names():
+        raise ValueError(f"no query named {name!r} in {QUERIES_DIR}")
+    return (QUERIES_DIR / f"{name}.sql").read_text(encoding="utf-8")
+
+
+def query_question(name: str, **params: object) -> str:
+    """The query's first comment line, with any :param it names replaced by its value."""
+    question = _query_sql(name).splitlines()[0].removeprefix("--").strip()
+    return re.sub(r":(\w+)", lambda m: str(params.get(m[1], m[0])), question)
 
 
 def run_query(connection: sqlite3.Connection, name: str, **params: object) -> list[dict]:
-    if name not in query_names():
-        raise ValueError(f"no query named {name!r} in {QUERIES_DIR}")
-    sql = (QUERIES_DIR / f"{name}.sql").read_text(encoding="utf-8")
-    return [dict(row) for row in connection.execute(sql, params)]
+    return [dict(row) for row in connection.execute(_query_sql(name), params)]
+
+
+def query_columns(connection: sqlite3.Connection, name: str, **params: object) -> list[str]:
+    # Known even when the query returns no rows, so an empty CSV still has its header.
+    return [column[0] for column in connection.execute(_query_sql(name), params).description]

@@ -76,12 +76,16 @@ def export_csv(
     written = []
     for name in EXPORTED_QUERIES:
         rows = _published_rows(connection, name, run_id, settings)
+        columns = store.query_columns(
+            connection, name, run_id=run_id, min_sites=settings.min_sites_per_category
+        )
+        if name == "site_summary" and not settings.show_site_names:
+            columns.remove("site_id")
         path = out_dir / f"{name}.csv"
         with path.open("w", encoding="utf-8", newline="") as handle:
-            if rows:
-                writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
-                writer.writeheader()
-                writer.writerows({k: _csv_safe(v) for k, v in row.items()} for row in rows)
+            writer = csv.DictWriter(handle, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows({k: _csv_safe(v) for k, v in row.items()} for row in rows)
         written.append(path)
     return written
 
@@ -165,7 +169,10 @@ def build_report(
         log=log,
         log_span_ms=span,
         csv_files=[p.name for p in csv_paths],
-        questions={name: store.query_question(name) for name in store.query_names()},
+        questions={
+            name: store.query_question(name, min_sites=settings.min_sites_per_category)
+            for name in store.query_names()
+        },
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "index.html"

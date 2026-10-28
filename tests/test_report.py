@@ -24,8 +24,16 @@ def test_report_hides_site_names_and_small_categories_by_default(seeded, tmp_pat
     assert "news-a.example" not in html and "gov-b.example" not in html
     # Every seeded category has fewer than 5 sites, so none may be listed.
     assert "No category has 5 or more measured sites" in html
+    # Empty tables still carry their header, without site_id while names are hidden.
     with (tmp_path / "data" / "site_summary.csv").open(encoding="utf-8") as handle:
-        assert list(csv.reader(handle)) == []
+        assert list(csv.reader(handle)) == [
+            ["url", "category", "ok_visits", "other_visits", "last_problem"]
+            + ["tracker_domains", "finding_kinds", "cmp"]
+        ]
+    with (tmp_path / "data" / "findings_by_category.csv").open(encoding="utf-8") as handle:
+        assert next(csv.reader(handle))[:2] == ["category", "sites"]
+    assert ":min_sites" not in html
+    assert "categories with at least 5 measured sites" in html
 
 
 def test_report_figures_come_from_the_database(seeded, tmp_path):
